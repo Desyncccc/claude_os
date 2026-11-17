@@ -573,10 +573,10 @@ static void DesktopThread(PVOID Context)
         ReapWindows();
         for (PLIST_ENTRY e = WmWindows.Flink; e != &WmWindows; e = e->Flink) {
             WINDOW *w = CONTAINING_RECORD(e, WINDOW, ZLink);
-            if (w->NeedsPaint && !w->Dead) {
+            if (w->NeedsPaint && !w->Dead && !w->Minimized) {     /* minimised windows repaint on restore */
                 w->NeedsPaint = FALSE;
                 w->Proc(w, WM_PAINT, 0, 0);
-                if (!w->Minimized) AddDirty(w->X, w->Y + WM_TITLE_H, w->W, w->H - WM_TITLE_H);
+                AddDirty(w->X, w->Y + WM_TITLE_H, w->W, w->H - WM_TITLE_H);
             }
         }
         ComposeDirty();

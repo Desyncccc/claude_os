@@ -1,6 +1,8 @@
 # RadiaNT OS -- build system
 #
 #   make            build the kernel, the user programs and the bootable ISO
+#   make test       boot the ISO headless in QEMU and check that the desktop starts
+#   make site       copy the ISO + checksum into docs/download for the website
 #   make run        boot the ISO in QEMU (BIOS)
 #   make run-uefi   boot the ISO in QEMU with OVMF (UEFI)
 #   make FB_WIDTH=1920 FB_HEIGHT=1080   build for another preferred resolution
@@ -41,7 +43,7 @@ HEADERS  := $(wildcard kernel/include/*.h)
 PROGRAMS := hello primes clock crash spin
 EXES     := $(patsubst %,$(BUILD)/user/%.exe,$(PROGRAMS))
 
-.PHONY: all kernel user iso run run-uefi fonts clean
+.PHONY: all kernel user iso site test run run-uefi fonts clean
 all: iso
 kernel: $(KERNEL)
 user: $(EXES)
@@ -76,6 +78,15 @@ $(ISO): $(KERNEL) $(EXES) boot/grub.cfg
 	    --install-modules="normal multiboot2 all_video iso9660 part_gpt part_msdos search configfile echo test boot fat" \
 	    > $(BUILD)/mkrescue.log 2>&1 || (cat $(BUILD)/mkrescue.log; false)
 	@ls -l $@
+
+# Refresh the copy of the ISO that the website (docs/) offers for download.
+site: $(ISO)
+	@mkdir -p docs/download
+	cp $(ISO) docs/download/radiant-x64.iso
+	python3 tools/mkrelease.py $(ISO) docs/download
+
+test: $(ISO)
+	tools/smoke-test.sh $(ISO)
 
 run: $(ISO)
 	qemu-system-x86_64 -m 512 -cdrom $(ISO) -serial stdio -vga std

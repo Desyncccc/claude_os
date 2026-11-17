@@ -1,0 +1,32 @@
+RadiaNT OS -- third-party notices
+=================================
+
+RadiaNT's kernel, window manager and user programs are original work released
+under the MIT licence (see LICENSE). The project is not affiliated with,
+endorsed by or derived from Microsoft, and contains no Microsoft code.
+"Windows" and "Windows NT" are trademarks of Microsoft Corporation and are
+used only to describe the architecture this kernel is modelled on.
+
+Fonts
+-----
+kernel/win32k/fontdata.c contains glyph coverage bitmaps rasterised by
+tools/mkfont.py from:
+
+  * Inter and Inter Display -- Copyright (c) The Inter Project Authors
+    (https://github.com/rsms/inter). SIL Open Font License, Version 1.1.
+    https://openfontlicense.org
+
+  * DejaVu Sans Mono -- Copyright (c) 2003 Bitstream, Inc. (Bitstream Vera)
+    and (c) 2006 Tavmjong Bah; DejaVu changes are in the public domain.
+    https://dejavu-fonts.github.io/License.html
+
+Boot loader
+-----------
+The bootable ISO (build/radiant-x64.iso and docs/download/radiant-x64.iso) is
+assembled by grub-mkrescue and therefore contains unmodified binaries of
+GNU GRUB 2, Copyright (c) Free Software Foundation, Inc., licensed under the
+GNU General Public License version 3 or later. The binaries come from the
+Ubuntu grub2 packages (grub-pc-bin, grub-efi-amd64-bin); the corresponding
+source is available from https://www.gnu.org/software/grub/ and from
+https://launchpad.net/ubuntu/+source/grub2. GRUB is a separate program that
+loads the RadiaNT kernel; it is not linked with it.

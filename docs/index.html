@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RadiaNT OS — a 64-bit operating system on the NT kernel architecture</title>
+<meta name="description" content="RadiaNT is a from-scratch x64 operating system modeled on the Windows NT kernel architecture: HAL, kernel, executive, object manager, PE32+ user mode and a compositing desktop. Download the bootable ISO.">
+<meta property="og:title" content="RadiaNT OS — x64, NT-architecture kernel, written from scratch">
+<meta property="og:description" content="A hobby operating system with an NT-style kernel and a glass desktop. Boots from a 5 MB ISO in any x64 virtual machine.">
+<meta property="og:image" content="assets/desktop.png">
+<meta name="theme-color" content="#07060f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop stop-color='%23ff3d8b'/%3E%3Cstop offset='1' stop-color='%23ff9a3d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4 60 32 32 60 4 32Z' fill='none' stroke='url(%23g)' stroke-width='6'/%3E%3Cpath d='M32 22 42 32 32 42 22 32Z' fill='%23ffd93d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07060f;
+  --ink: #ece9f5;
+  --dim: #a19bbf;
+  --faint: #6f698f;
+  --pink: #ff3d8b;
+  --orange: #ff9a3d;
+  --yellow: #ffd93d;
+  --violet: #8b5cff;
+  --cyan: #3de8ff;
+  --green: #4dffa6;
+  --red: #ff4d5e;
+  --glass: rgba(22, 18, 48, .58);
+  --glass-strong: rgba(14, 11, 32, .78);
+  --line: rgba(255, 255, 255, .09);
+  --line-strong: rgba(255, 255, 255, .16);
+  --radius: 20px;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --grad: linear-gradient(100deg, var(--pink), var(--orange) 55%, var(--yellow));
+  --grad-cool: linear-gradient(100deg, var(--violet), var(--cyan));
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: inherit; }
+img { max-width: 100%; height: auto; display: block; }
+code, kbd, pre { font-family: var(--mono); }
+::selection { background: var(--pink); color: #fff; }
+
+/* ---- Backdrop: the wallpaper, alive ---- */
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; }
+.backdrop {
+  position: fixed; inset: 0; z-index: -3;
+  background:
+    radial-gradient(60% 55% at 16% 28%, rgba(255, 46, 136, .30), transparent 70%),
+    radial-gradient(55% 50% at 84% 20%, rgba(106, 61, 255, .34), transparent 70%),
+    radial-gradient(60% 50% at 56% 82%, rgba(255, 122, 46, .16), transparent 70%),
+    radial-gradient(40% 40% at 98% 84%, rgba(30, 200, 255, .16), transparent 70%),
+    linear-gradient(180deg, #0a0720, #160b33 50%, #06040d);
+}
+.veil { position: fixed; inset: 0; z-index: -1; background: var(--bg); opacity: 0; pointer-events: none; }
+
+.wrap { width: min(1180px, 100% - 40px); margin-inline: auto; }
+section { padding: 110px 0; position: relative; }
+.eyebrow {
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--orange); display: inline-flex; align-items: center; gap: 10px; margin: 0 0 18px;
+}
+.eyebrow::before { content: ""; width: 9px; height: 9px; background: var(--grad); transform: rotate(45deg); }
+h2 { font-size: clamp(34px, 5vw, 58px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; margin: 0 0 22px; text-wrap: balance; }
+h3 { font-size: 20px; letter-spacing: -.01em; margin: 0 0 8px; }
+p { margin: 0 0 16px; }
+.lead { font-size: clamp(18px, 2vw, 21px); color: var(--dim); max-width: 62ch; }
+.grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.grad-cool { background: var(--grad-cool); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+/* ---- Nav ---- */
+.nav { position: fixed; top: 14px; left: 0; right: 0; z-index: 50; }
+.nav .bar {
+  width: min(1180px, 100% - 28px); margin-inline: auto; height: 56px; padding: 0 10px 0 18px;
+  display: flex; align-items: center; gap: 26px; border-radius: 18px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.02em; text-decoration: none; font-size: 18px; }
+.brand svg { width: 24px; height: 24px; }
+.nav nav { display: flex; gap: 4px; margin-left: auto; }
+.nav nav a { text-decoration: none; color: var(--dim); font-size: 14.5px; font-weight: 500; padding: 8px 12px; border-radius: 10px; transition: color .2s, background .2s; }
+.nav nav a:hover { color: var(--ink); background: rgba(255, 255, 255, .07); }
+.nav nav a.btn, .nav nav a.btn:hover { color: #1a0613; background: var(--grad); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; cursor: pointer;
+  font: 700 16px/1 var(--sans); padding: 16px 24px; border-radius: 14px; border: 1px solid transparent;
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .25s, background .2s, border-color .2s;
+}
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn-primary { background: var(--grad); color: #1a0613; box-shadow: 0 10px 40px -8px rgba(255, 61, 139, .7), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 54px -8px rgba(255, 90, 100, .85), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.btn-ghost { background: rgba(255, 255, 255, .06); color: var(--ink); border-color: var(--line-strong); }
+.btn-ghost:hover { background: rgba(255, 255, 255, .12); transform: translateY(-2px); }
+.btn-small { padding: 10px 16px; font-size: 14px; border-radius: 11px; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 8px; }
+
+/* ---- Hero ---- */
+.hero { min-height: 100svh; padding: 150px 0 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.hero::before { content: ""; position: absolute; left: 50%; top: 120px; width: min(1100px, 100%); height: 800px; transform: translateX(-50%); z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(7, 6, 15, .78), rgba(7, 6, 15, .5) 55%, transparent); }
+.logo { width: 132px; height: 132px; margin-bottom: 26px; filter: drop-shadow(0 0 34px rgba(255, 61, 139, .55)); }
+.logo .ring { transform-origin: 50% 50%; animation: breathe 5s ease-in-out infinite; }
+.logo .ring:nth-child(2) { animation-delay: -1.6s; }
+.logo .core { transform-origin: 50% 50%; animation: pulse 2.6s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.07); opacity: .82; } }
+@keyframes pulse { 50% { transform: scale(.86); } }
+.hero h1 { font-size: clamp(64px, 14vw, 176px); line-height: .88; letter-spacing: -.06em; font-weight: 900; margin: 0; }
+.hero h1 .nt { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 40px rgba(255, 110, 80, .45)); }
+.hero .tag { font-size: clamp(20px, 2.8vw, 30px); font-weight: 600; letter-spacing: -.02em; margin: 26px auto 14px; max-width: 24ch; text-wrap: balance; }
+.hero .sub { color: var(--dim); max-width: 58ch; margin: 0 auto 32px; font-size: 18px; }
+.cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 26px; }
+.chip { font: 500 12.5px/1 var(--mono); padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(10, 8, 24, .5); color: var(--dim); }
+.chip b { color: var(--ink); font-weight: 500; }
+
+.stage { width: min(1180px, 100% - 40px); margin: 74px auto 0; perspective: 1800px; }
+.screen {
+  border-radius: 18px; overflow: hidden; border: 1px solid var(--line-strong); background: #000;
+  transform: rotateX(16deg) scale(.94); transform-origin: 50% 0;
+  box-shadow: 0 60px 140px -30px rgba(255, 61, 139, .45), 0 30px 80px -20px rgba(139, 92, 255, .5), 0 0 0 1px rgba(255, 255, 255, .04);
+  will-change: transform;
+}
+.screen .bezel { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: rgba(18, 14, 38, .95); border-bottom: 1px solid var(--line); font: 500 12px var(--mono); color: var(--faint); }
+.screen .bezel i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .14); }
+.screen .bezel span { margin-left: auto; }
+.screen img { width: 100%; aspect-ratio: 16 / 9; }
+
+/* ---- What ---- */
+.split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: start; }
+.facts { padding: 8px 26px; }
+.facts dl { margin: 0; }
+.facts div { display: flex; justify-content: space-between; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.facts div:last-child { border: 0; }
+.facts dt { color: var(--dim); font-size: 14.5px; }
+.facts dd { margin: 0; font: 500 14.5px var(--mono); text-align: right; }
+.callout { margin-top: 26px; padding: 20px 22px; border-radius: 16px; border: 1px solid rgba(255, 154, 61, .35); background: rgba(255, 154, 61, .07); color: #f4dcc6; font-size: 15.5px; }
+.callout b { color: var(--orange); }
+
+/* ---- Architecture ---- */
+.arch { display: grid; grid-template-columns: 1.25fr .75fr; gap: 26px; margin-top: 46px; align-items: stretch; }
+.stack { padding: 22px; display: grid; gap: 12px; }
+.layer { border-radius: 14px; border: 1px dashed var(--line-strong); padding: 14px; }
+.layer > span { font: 500 11.5px var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 10px; }
+.layer .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 9px; }
+.node {
+  all: unset; box-sizing: border-box; cursor: pointer; text-align: center; padding: 13px 8px; border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent);
+  font: 700 15px var(--sans); color: var(--c); transition: transform .18s, background .18s, box-shadow .18s;
+}
+.node small { display: block; font: 500 11px var(--mono); color: var(--dim); margin-top: 3px; }
+.node:hover, .node[aria-pressed="true"] { transform: translateY(-2px); background: color-mix(in srgb, var(--c) 24%, transparent); box-shadow: 0 10px 30px -10px var(--c); }
+.node:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.gate { text-align: center; font: 500 12px var(--mono); color: var(--yellow); letter-spacing: .08em; padding: 6px; position: relative; }
+.gate::before, .gate::after { content: ""; position: absolute; top: 50%; width: 22%; height: 1px; background: linear-gradient(90deg, transparent, var(--yellow)); }
+.gate::before { left: 0; } .gate::after { right: 0; transform: scaleX(-1); }
+.detail { padding: 28px; display: flex; flex-direction: column; }
+.detail .tagline { font: 500 12px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.detail h3 { font-size: 30px; letter-spacing: -.03em; margin: 8px 0 12px; }
+.detail p { color: var(--dim); font-size: 15.5px; }
+.detail ul { margin: 6px 0 20px; padding: 0; list-style: none; display: grid; gap: 9px; font-size: 14.5px; }
+.detail li { padding-left: 20px; position: relative; }
+.detail li::before { content: ""; position: absolute; left: 2px; top: 9px; width: 7px; height: 7px; transform: rotate(45deg); background: var(--c, var(--pink)); }
+.detail .src { margin-top: auto; font: 500 13px var(--mono); color: var(--cyan); text-decoration: none; }
+.detail .src:hover { text-decoration: underline; }
+
+/* ---- Features ---- */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 46px; }
+.card { padding: 26px; position: relative; overflow: hidden; transition: transform .3s cubic-bezier(.2, .8, .2, 1), border-color .3s; }
+.card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 61, 139, .16), transparent 60%); }
+.card:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, .2); }
+.card:hover::after { opacity: 1; }
+.card .ico { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; margin-bottom: 18px; background: var(--g); box-shadow: 0 10px 26px -10px var(--s), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.card .ico svg { width: 24px; height: 24px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.card p { color: var(--dim); font-size: 15px; margin: 0; }
+.card code { font-size: 13px; color: var(--ink); background: rgba(255, 255, 255, .07); padding: 1px 6px; border-radius: 6px; }
+
+/* ---- Gallery ---- */
+.gallery { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 46px; }
+.shot { all: unset; box-sizing: border-box; cursor: zoom-in; grid-column: span 2; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #05040b; position: relative; transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s; }
+.shot:nth-child(1), .shot:nth-child(2) { grid-column: span 3; }
+.shot img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.shot figcaption, .shot .cap { padding: 13px 16px; font-size: 14px; color: var(--dim); border-top: 1px solid var(--line); }
+.shot .cap b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.shot:hover { transform: translateY(-4px); box-shadow: 0 30px 70px -30px rgba(139, 92, 255, .8); }
+dialog#lightbox { border: 0; padding: 0; background: transparent; max-width: min(1320px, 96vw); width: 96vw; }
+dialog#lightbox::backdrop { background: rgba(4, 3, 10, .86); backdrop-filter: blur(8px); }
+dialog#lightbox img { width: 100%; border-radius: 14px; border: 1px solid var(--line-strong); box-shadow: 0 40px 120px rgba(0, 0, 0, .8); }
+dialog#lightbox p { text-align: center; color: var(--dim); font-size: 14px; margin: 14px 0 0; }
+
+/* ---- Terminal ---- */
+.term { margin-top: 46px; overflow: hidden; border-color: rgba(255, 61, 139, .5); box-shadow: 0 40px 110px -40px rgba(255, 61, 139, .6), 0 0 0 1px rgba(139, 92, 255, .2); background: rgba(12, 10, 24, .82); position: relative; }
+.term .title { height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14.5px; }
+.term .title::before { content: ""; width: 10px; height: 10px; background: var(--grad); transform: rotate(45deg); }
+.term .title em { margin-left: auto; font: 500 11.5px var(--mono); color: var(--faint); font-style: normal; letter-spacing: .08em; }
+.term pre { margin: 0; padding: 18px 20px 6px; height: 440px; overflow-y: auto; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; scrollbar-width: thin; scrollbar-color: #3a3368 transparent; }
+.term form { display: flex; align-items: center; gap: 8px; padding: 6px 20px 18px; font: 13.5px var(--mono); }
+.term input { all: unset; flex: 1; font: 13.5px var(--mono); color: var(--ink); caret-color: var(--pink); }
+.term .quick { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); background: rgba(255, 255, 255, .02); }
+.term .quick button { all: unset; cursor: pointer; font: 500 12.5px var(--mono); padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line-strong); color: var(--dim); transition: all .15s; }
+.term .quick button:hover { color: var(--ink); border-color: var(--pink); background: rgba(255, 61, 139, .12); }
+.c-pink { color: var(--pink); } .c-orange { color: var(--orange); } .c-cyan { color: var(--cyan); } .c-green { color: var(--green); }
+.c-red { color: var(--red); } .c-violet { color: #a98bff; } .c-dim { color: var(--faint); } .c-white { color: #fff; } .c-yellow { color: var(--yellow); }
+.bsod { position: absolute; inset: 0; display: none; flex-direction: column; justify-content: center; padding: 34px 40px; background: linear-gradient(180deg, #1f0416, #2c0718 50%, #08030a); font-family: var(--mono); font-size: 13.5px; color: #f3d6df; z-index: 3; }
+.bsod.on { display: flex; animation: flash .35s steps(3); }
+.bsod h4 { font: 800 26px var(--sans); color: #fff; margin: 0 0 6px; letter-spacing: -.02em; }
+.bsod .stop { font: 800 22px var(--sans); color: var(--yellow); margin: 18px 0 2px; }
+@keyframes flash { 0% { filter: invert(1); } 50% { transform: translateX(-6px); } 100% { transform: none; } }
+
+/* ---- Run ---- */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 40px; }
+.tabs button { all: unset; cursor: pointer; padding: 11px 18px; border-radius: 12px; font-weight: 600; font-size: 15px; color: var(--dim); border: 1px solid transparent; transition: all .18s; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); background: var(--glass); border-color: var(--line-strong); }
+.panel { margin-top: 14px; padding: 28px; display: none; }
+.panel.on { display: block; animation: rise .35s ease; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+.panel ol { margin: 0 0 18px; padding-left: 22px; color: var(--dim); display: grid; gap: 8px; }
+.panel ol b, .panel p b { color: var(--ink); }
+.panel p { color: var(--dim); }
+.cmd { position: relative; margin: 12px 0 18px; border-radius: 13px; border: 1px solid var(--line); background: rgba(5, 4, 12, .7); }
+.cmd pre { margin: 0; padding: 16px 78px 16px 18px; font-size: 13.5px; overflow-x: auto; color: #dcd6f5; }
+.cmd pre .c { color: var(--faint); }
+.cmd button { all: unset; cursor: pointer; position: absolute; top: 9px; right: 9px; font: 600 12px var(--sans); padding: 7px 11px; border-radius: 8px; background: rgba(255, 255, 255, .08); color: var(--dim); }
+.cmd button:hover { background: rgba(255, 255, 255, .16); color: var(--ink); }
+.note { font-size: 14px; color: var(--faint); border-left: 2px solid var(--violet); padding-left: 14px; margin: 0; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.two .glass { padding: 26px; }
+.two ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--dim); font-size: 15px; }
+.two li { padding-left: 22px; position: relative; }
+.two li::before { content: ""; position: absolute; left: 2px; top: 9px; width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: var(--b, var(--green)); }
+
+/* ---- Download ---- */
+.dl { padding: 54px clamp(24px, 5vw, 64px); display: grid; grid-template-columns: 1.1fr .9fr; gap: 44px; align-items: center; overflow: hidden; position: relative; border-color: rgba(255, 154, 61, .4); }
+.dl::before { content: ""; position: absolute; width: 560px; height: 560px; right: -160px; top: -200px; background: radial-gradient(closest-side, rgba(255, 61, 139, .34), transparent); pointer-events: none; }
+.dl h2 { margin-bottom: 14px; }
+.dl .meta { position: relative; font: 500 13.5px var(--mono); display: grid; gap: 0; }
+.dl .meta div { display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.dl .meta span { color: var(--dim); }
+.dl .hash { word-break: break-all; text-align: right; max-width: 30ch; color: var(--cyan); cursor: copy; }
+.dl .cta { justify-content: flex-start; margin-top: 26px; }
+
+footer { padding: 56px 0 70px; color: var(--faint); font-size: 14px; border-top: 1px solid var(--line); background: rgba(5, 4, 12, .6); }
+footer .wrap { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; }
+footer a { color: var(--dim); }
+footer p { margin: 0 0 10px; max-width: 70ch; }
+
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .8s cubic-bezier(.2, .8, .2, 1), transform .8s cubic-bezier(.2, .8, .2, 1); }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 960px) {
+  .split, .arch, .dl, footer .wrap, .two { grid-template-columns: 1fr; }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .nav nav a:not(.btn) { display: none; }
+  section { padding: 80px 0; }
+  .shot, .shot:nth-child(1), .shot:nth-child(2) { grid-column: span 6; }
+}
+@media (max-width: 620px) {
+  body { font-size: 16px; }
+  .grid3 { grid-template-columns: 1fr; }
+  .hero { padding-top: 120px; }
+  .hero .tag, .hero .sub, .hero .cta, .hero .chips { padding-inline: 20px; }
+  .logo { width: 104px; height: 104px; }
+  .term pre { height: 380px; font-size: 12px; }
+  .screen { transform: none !important; }
+  .dl .hash { max-width: 20ch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .logo .ring, .logo .core { animation: none; }
+  .screen { transform: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="veil" id="veil" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="bar glass">
+    <a class="brand" href="#top" aria-label="RadiaNT home">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg0" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ff3d8b"/><stop offset="1" stop-color="#ff9a3d"/></linearGradient></defs><path d="M32 5 59 32 32 59 5 32Z" fill="none" stroke="url(#lg0)" stroke-width="6"/><path d="M32 22 42 32 32 42 22 32Z" fill="#ffd93d"/></svg>
+      RadiaNT
+    </a>
+    <nav aria-label="Sections">
+      <a href="#what">What it is</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#try">Try it</a>
+      <a href="#run">Run it</a>
+      <a class="btn btn-primary btn-small" href="#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <svg class="logo" viewBox="0 0 200 200" aria-hidden="true">
+    <defs>
+      <linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ff3d8b"/><stop offset="1" stop-color="#ff9a3d"/></linearGradient>
+      <linearGradient id="lg2" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#8b5cff"/><stop offset="1" stop-color="#ff3d8b"/></linearGradient>
+      <linearGradient id="lg3" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffd93d"/><stop offset="1" stop-color="#ff9a3d"/></linearGradient>
+    </defs>
+    <path class="ring" d="M100 12 188 100 100 188 12 100Z" fill="none" stroke="url(#lg1)" stroke-width="13" stroke-linejoin="miter"/>
+    <path class="ring" d="M100 50 150 100 100 150 50 100Z" fill="none" stroke="url(#lg2)" stroke-width="9"/>
+    <path class="core" d="M100 74 126 100 100 126 74 100Z" fill="url(#lg3)"/>
+  </svg>
+  <h1>Radia<span class="nt">NT</span></h1>
+  <p class="tag">A 64-bit operating system built from scratch on the <span class="grad">NT kernel architecture</span>.</p>
+  <p class="sub">A hybrid kernel with a HAL, IRQLs, an object manager, PE32+ user mode and a software-composited glass desktop — about 7,000 lines of C and assembly that boot from a 5&nbsp;MB ISO.</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="download/radiant-x64.iso" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0-5-5m5 5 5-5M4 21h16"/></svg>
+      Download the ISO <span data-size style="font-weight:500;opacity:.75">· 5.1 MB</span>
+    </a>
+    <a class="btn btn-ghost" href="https://github.com/Desyncccc/claude_os">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l-5 4 5 4M16 8l5 4-5 4M14 4l-4 16"/></svg>
+      Read the source
+    </a>
+  </div>
+  <div class="chips" aria-label="Release details">
+    <span class="chip"><b data-version>v0.1.2611</b> “First Light”</span>
+    <span class="chip"><b>x86-64</b> long mode</span>
+    <span class="chip">boots on <b>BIOS + UEFI</b></span>
+    <span class="chip"><b>MIT</b> licensed</span>
+  </div>
+
+  <div class="stage">
+    <div class="screen" id="screen">
+      <div class="bezel"><i></i><i></i><i></i><span>RadiaNT 0.1 — 1280×720 — running in QEMU</span></div>
+      <img src="assets/desktop.png" width="1280" height="720" alt="The RadiaNT desktop: a translucent terminal showing system information and a user-mode program, a System Monitor window with a live CPU graph, and a dock, over a wallpaper of glowing ribbons.">
+    </div>
+  </div>
+</section>
+
+<!-- ============================== WHAT ============================== -->
+<section id="what">
+  <div class="wrap split">
+    <div class="reveal">
+      <p class="eyebrow">What it is</p>
+      <h2>An original kernel that thinks the way <span class="grad">NT</span> does.</h2>
+      <p class="lead">RadiaNT is a hobby operating system for 64-bit PCs. Its kernel is not Windows and contains no Windows code — it is written from scratch, but it is organised the way the Windows NT kernel is.</p>
+      <p style="color:var(--dim)">That means a hardware abstraction layer underneath a small kernel, and above that an <em>executive</em> of cooperating managers: objects, processes, memory, I/O and configuration. Interrupts are ranked by IRQL and deferred through DPCs. Everything the kernel owns is a typed, reference-counted object in a namespace that starts at <code>\</code>. Programs are PE32+ executables that enter the kernel with <code>SYSCALL</code> through a service table — the same register protocol NT uses on x64.</p>
+      <p style="color:var(--dim)">On top sits a window manager that composites frosted-glass windows in software, with no GPU and no floating point.</p>
+      <div class="callout"><b>What it is not.</b> It will not run Windows applications or drivers, it is not a Windows replacement, and it is not affiliated with Microsoft. It is a small, readable system for learning how an NT-style kernel fits together — and for showing off.</div>
+    </div>
+    <aside class="glass facts reveal" aria-label="Fact sheet">
+      <dl>
+        <div><dt>Architecture</dt><dd>x86-64, long mode</dd></div>
+        <div><dt>Kernel design</dt><dd>hybrid, NT-style executive</dd></div>
+        <div><dt>Scheduler</dt><dd>preemptive, 32 priorities</dd></div>
+        <div><dt>Executable format</dt><dd>PE32+ (ring 3)</dd></div>
+        <div><dt>System calls</dt><dd>SYSCALL · 14 native services</dd></div>
+        <div><dt>Boot</dt><dd>Multiboot2 · GRUB · BIOS/UEFI</dd></div>
+        <div><dt>Graphics</dt><dd>software compositor, 32-bit</dd></div>
+        <div><dt>Kernel image</dt><dd>≈ 300 KB</dd></div>
+        <div><dt>Minimum RAM</dt><dd>128 MB</dd></div>
+      </dl>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================== ARCHITECTURE ============================== -->
+<section id="architecture">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Architecture</p>
+      <h2>Every layer of the stack, <span class="grad-cool">one click deep</span>.</h2>
+      <p class="lead">Pick a component to see what it does and where it lives in the source tree.</p>
+    </div>
+    <div class="arch reveal">
+      <div class="glass stack" role="group" aria-label="System layers">
+        <div class="layer">
+          <span>User mode · ring 3</span>
+          <div class="row"><button class="node" style="--c:var(--green)" data-k="user" aria-pressed="false">PE32+ programs<small>hello.exe · primes.exe · …</small></button></div>
+        </div>
+        <div class="gate">SYSCALL ▸ system service table</div>
+        <div class="layer">
+          <span>Executive · ring 0</span>
+          <div class="row">
+            <button class="node" style="--c:#a98bff" data-k="ob" aria-pressed="false">Ob<small>objects</small></button>
+            <button class="node" style="--c:var(--green)" data-k="ps" aria-pressed="false">Ps<small>processes</small></button>
+            <button class="node" style="--c:var(--orange)" data-k="mm" aria-pressed="false">Mm<small>memory</small></button>
+            <button class="node" style="--c:var(--yellow)" data-k="io" aria-pressed="false">Io<small>drivers</small></button>
+            <button class="node" style="--c:var(--cyan)" data-k="cm" aria-pressed="false">Cm<small>registry</small></button>
+            <button class="node" style="--c:var(--pink)" data-k="win32k" aria-pressed="false">win32k<small>windows</small></button>
+          </div>
+        </div>
+        <div class="layer">
+          <span>Kernel</span>
+          <div class="row"><button class="node" style="--c:var(--pink)" data-k="ke" aria-pressed="true">Ke<small>scheduler · IRQL · DPCs · traps</small></button></div>
+        </div>
+        <div class="layer">
+          <span>Hardware abstraction layer</span>
+          <div class="row"><button class="node" style="--c:var(--cyan)" data-k="hal" aria-pressed="false">HAL<small>PIC · PIT · RTC · serial · power</small></button></div>
+        </div>
+        <div class="layer" style="border-style:solid;opacity:.75">
+          <span style="margin:0">x86-64 CPU · PS/2 keyboard + mouse · linear framebuffer</span>
+        </div>
+      </div>
+      <div class="glass detail" id="detail" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FEATURES ============================== -->
+<section id="features">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Under the glass</p>
+      <h2>Small enough to read. <span class="grad">Real enough to crash.</span></h2>
+    </div>
+    <div class="grid3">
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#ff3d8b,#ff9a3d);--s:#ff3d8b">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+        <h3>Preemptive multitasking</h3>
+        <p>32 priority levels, round-robin quanta and a 1&nbsp;kHz clock. An infinite loop in user mode leaves the desktop perfectly responsive.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#8b5cff,#3de8ff);--s:#8b5cff">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 18h16M4 12h10M4 6h5"/></svg></div>
+        <h3>IRQLs and DPCs</h3>
+        <p>Interrupt service routines do the minimum and queue a deferred procedure call. The dispatcher database is only ever touched at <code>DISPATCH_LEVEL</code>.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#9a6bff,#c936b8);--s:#9a6bff">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg></div>
+        <h3>Object manager</h3>
+        <p>Processes, threads, events, devices and drivers are typed objects with reference counts, living under <code>\Device</code>, <code>\Driver</code>, <code>\ObjectTypes</code>… Handles are multiples of four.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#ff9a3d,#ffd93d);--s:#ff9a3d">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 4v16"/></svg></div>
+        <h3>Virtual memory</h3>
+        <p>Four-level paging, a higher-half kernel, a physical map, per-process address spaces with NX, and a tagged pool allocator you can inspect with <code>pool</code>.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#1fd6a0,#1767d9);--s:#1fd6a0">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 5l-2 14"/></svg></div>
+        <h3>Ring 3, PE32+ and SYSCALL</h3>
+        <p>User programs are genuine Portable Executables built with clang and lld-link, mapped section by section and isolated from the kernel. A wild pointer kills the process, not the machine.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#ff5a6a,#8b1e3c);--s:#ff5a6a">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3L12 3zM12 10v4M12 17.500v.01"/></svg></div>
+        <h3>Bugchecks</h3>
+        <p>When the kernel itself faults it stops with a <code>STOP</code> code, four parameters and a register dump — on screen and over the serial port. Type <code>bugcheck</code> to see one.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#3de8ff,#1767d9);--s:#3de8ff">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Compositing desktop</h3>
+        <p>Frosted glass, soft shadows, anti-aliased rounded corners and alpha-blended text, composited per damaged rectangle by a single kernel thread. No GPU required.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#ffd93d,#ff9a3d);--s:#ffd93d">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M6 3v18M6 7h9l-2 3 2 3H6"/></svg></div>
+        <h3>I/O manager</h3>
+        <p>Driver objects, device objects and IRPs. The window manager reads the keyboard and mouse by sending <code>IRP_MJ_READ</code> to <code>\Device\KeyboardClass0</code>.</p>
+      </article>
+      <article class="glass card reveal" style="--g:linear-gradient(160deg,#4dffa6,#1fa0d6);--s:#4dffa6">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2"/></svg></div>
+        <h3>Registry</h3>
+        <p>A configuration manager with an in-memory hive: hardware description, version information and services under <code>\Registry\Machine</code>. Browse it with <code>reg</code>.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SCREENSHOTS ============================== -->
+<section id="screenshots">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Screenshots</p>
+      <h2>It really looks like this.</h2>
+      <p class="lead">Unretouched framebuffer captures from the ISO on this page, running in QEMU at 1280×720.</p>
+    </div>
+    <div class="gallery">
+      <button class="shot reveal" data-cap="Terminal and System Monitor. spin.exe pinned the CPU from ring 3 until Ctrl+C; hello.exe then talked to the kernel through system calls.">
+        <img loading="lazy" src="assets/desktop.png" width="1280" height="720" alt="Desktop with the Terminal and System Monitor windows.">
+        <div class="cap"><b>Desktop</b>User-mode programs and live scheduler statistics</div>
+      </button>
+      <button class="shot reveal" data-cap="Object Explorer browsing \ObjectTypes, next to Nebula: a fixed-point plasma with a spinning wireframe at about 28 frames per second under emulation.">
+        <img loading="lazy" src="assets/apps.png" width="1280" height="720" alt="Object Explorer listing kernel object types beside the Nebula plasma demo.">
+        <div class="cap"><b>Apps</b>Object Explorer and the Nebula software renderer</div>
+      </button>
+      <button class="shot reveal" data-cap="The shell listing drivers and their devices, and the system service table with per-service call counts.">
+        <img loading="lazy" src="assets/shell.png" width="1280" height="720" alt="Terminal showing loaded drivers and the system call table.">
+        <div class="cap"><b>Shell</b>Drivers, devices and the syscall table</div>
+      </button>
+      <button class="shot reveal" data-cap="The boot splash, drawn by the kernel while the executive initialises.">
+        <img loading="lazy" src="assets/boot.png" width="1280" height="720" alt="Boot splash with the RadiaNT diamond logo and a progress bar.">
+        <div class="cap"><b>Boot</b>Phase 1 initialisation</div>
+      </button>
+      <button class="shot reveal" data-cap="A deliberate bugcheck: STOP 0x000000E2 MANUALLY_INITIATED_CRASH.">
+        <img loading="lazy" src="assets/bugcheck.png" width="1280" height="720" alt="Bugcheck screen showing STOP 0x000000E2 MANUALLY_INITIATED_CRASH.">
+        <div class="cap"><b>Bugcheck</b>When the kernel says stop</div>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== TERMINAL ============================== -->
+<section id="try">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Try it here</p>
+      <h2>Poke the shell before you boot it.</h2>
+      <p class="lead">This is a simulation running in your browser, replaying what the real Terminal prints. Type a command or tap one below.</p>
+    </div>
+    <div class="glass term reveal" id="term">
+      <div class="title">Terminal <em>BROWSER SIMULATION</em></div>
+      <pre id="out" aria-live="polite" tabindex="0"></pre>
+      <form id="prompt" autocomplete="off">
+        <span><span class="c-pink">RadiaNT</span> <span class="c-violet">\System</span> <span class="c-dim">&gt;</span></span>
+        <input id="in" aria-label="Shell command" spellcheck="false" autocapitalize="off">
+      </form>
+      <div class="quick" id="quick"></div>
+      <div class="bsod" id="bsod" role="alert"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== RUN ============================== -->
+<section id="run">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Run it</p>
+      <h2>From download to desktop in <span class="grad">ten seconds</span>.</h2>
+      <p class="lead">The ISO is a hybrid image: attach it to a virtual machine as a CD, or write it to a USB stick. Nothing is installed and nothing on your disks is touched — RadiaNT has no disk driver.</p>
+    </div>
+    <div class="tabs reveal" role="tablist" aria-label="Ways to run RadiaNT">
+      <button role="tab" aria-selected="true" data-tab="qemu">QEMU</button>
+      <button role="tab" aria-selected="false" data-tab="vbox">VirtualBox</button>
+      <button role="tab" aria-selected="false" data-tab="vmware">VMware</button>
+      <button role="tab" aria-selected="false" data-tab="usb">USB stick</button>
+    </div>
+    <div class="glass panel on" id="tab-qemu" role="tabpanel">
+      <p><b>Recommended, and the configuration RadiaNT is tested on.</b></p>
+      <div class="cmd"><pre>qemu-system-x86_64 -m 512 -cdrom radiant-x64.iso</pre><button>Copy</button></div>
+      <p>Add hardware acceleration, or boot through UEFI firmware instead of BIOS:</p>
+      <div class="cmd"><pre><span class="c"># Linux with KVM</span>
+qemu-system-x86_64 -enable-kvm -m 512 -cdrom radiant-x64.iso
+
+<span class="c"># UEFI (path to OVMF varies by distribution)</span>
+qemu-system-x86_64 -m 512 -cdrom radiant-x64.iso -bios /usr/share/ovmf/OVMF.fd
+
+<span class="c"># watch the kernel debug log</span>
+qemu-system-x86_64 -m 512 -cdrom radiant-x64.iso -serial stdio</pre><button>Copy</button></div>
+      <p class="note">Click inside the window to capture the mouse; Ctrl+Alt+G releases it.</p>
+    </div>
+    <div class="glass panel" id="tab-vbox" role="tabpanel">
+      <ol>
+        <li>Create a VM with type <b>Other</b>, version <b>Other/Unknown (64-bit)</b>.</li>
+        <li>Give it <b>256 MB</b> of memory or more. No hard disk is needed.</li>
+        <li>Under <b>Storage</b>, attach <code>radiant-x64.iso</code> to the optical drive.</li>
+        <li>Under <b>System → Motherboard</b>, set the pointing device to <b>PS/2 Mouse</b>.</li>
+        <li>Start the VM.</li>
+      </ol>
+      <p class="note">Not yet verified on VirtualBox. RadiaNT only has a PS/2 input driver, so a USB tablet pointing device will not work.</p>
+    </div>
+    <div class="glass panel" id="tab-vmware" role="tabpanel">
+      <ol>
+        <li>Create a custom VM and choose <b>I will install the operating system later</b>.</li>
+        <li>Guest operating system: <b>Other → Other 64-bit</b>.</li>
+        <li>Memory <b>256 MB</b> or more; you can remove the virtual hard disk.</li>
+        <li>Point the CD/DVD drive at <code>radiant-x64.iso</code> and enable <b>Connect at power on</b>.</li>
+        <li>Power on. Either BIOS or UEFI firmware should work.</li>
+      </ol>
+      <p class="note">Not yet verified on VMware.</p>
+    </div>
+    <div class="glass panel" id="tab-usb" role="tabpanel">
+      <p>Write the image to a spare USB stick (this erases the stick), then boot a PC from it.</p>
+      <div class="cmd"><pre><span class="c"># Linux / macOS — replace sdX with the stick, not your disk</span>
+sudo dd if=radiant-x64.iso of=/dev/sdX bs=4M status=progress conv=fsync</pre><button>Copy</button></div>
+      <p>On Windows use Rufus in <b>DD image mode</b>, or balenaEtcher.</p>
+      <p class="note">Experimental: real hardware is untested. The firmware must provide a 32-bit linear framebuffer and PS/2 (or USB legacy) keyboard and mouse emulation. There is no USB, disk or network driver.</p>
+    </div>
+
+    <div class="two reveal">
+      <div class="glass">
+        <h3>Things to try once it boots</h3>
+        <ul>
+          <li><code>sysinfo</code>, <code>ps</code>, <code>mem</code>, <code>pool</code> — look inside the kernel</li>
+          <li><code>obj \</code>, <code>drivers</code>, <code>reg</code> — walk the object namespace and registry</li>
+          <li><code>hello</code>, <code>primes</code>, <code>clock</code> — run PE32+ programs in ring 3</li>
+          <li><code>crash</code> — watch a process get killed for touching kernel memory</li>
+          <li><code>spin</code>, then open System Monitor — preemption at work</li>
+          <li>Drag windows, Alt+Tab, Alt+F4, and open Nebula from the dock</li>
+        </ul>
+      </div>
+      <div class="glass">
+        <h3>Honest limits</h3>
+        <ul style="--b:var(--orange)">
+          <li>One processor; no SMP, APIC or ACPI tables</li>
+          <li>No disk, file system, network, USB or sound</li>
+          <li>Everything lives in RAM and is gone at power-off</li>
+          <li>14 system services — enough for the demo programs, not for a libc</li>
+          <li>PE is the container format only: no Win32 API, no DLLs</li>
+          <li>Tested in QEMU (SeaBIOS and OVMF); other hosts are unverified</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:56px">
+      <h3 style="font-size:26px;letter-spacing:-.02em">Build it yourself</h3>
+      <p style="color:var(--dim);max-width:70ch">The whole system builds in a few seconds on Linux with GCC, NASM, clang + lld (for the PE user programs) and GRUB's <code>grub-mkrescue</code>.</p>
+      <div class="cmd"><pre>sudo apt install build-essential nasm clang lld xorriso mtools \
+                 grub-pc-bin grub-efi-amd64-bin grub-common qemu-system-x86
+git clone https://github.com/Desyncccc/claude_os && cd claude_os
+make          <span class="c"># build/radiant-x64.iso</span>
+make run      <span class="c"># boot it in QEMU</span></pre><button>Copy</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== DOWNLOAD ============================== -->
+<section id="download">
+  <div class="wrap">
+    <div class="glass dl reveal">
+      <div>
+        <p class="eyebrow">Download</p>
+        <h2>Get <span class="grad">RadiaNT</span>.</h2>
+        <p class="lead" style="font-size:18px">One bootable ISO for 64-bit PCs and virtual machines. Free and open source under the MIT licence.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="download/radiant-x64.iso" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0-5-5m5 5 5-5M4 21h16"/></svg>
+            radiant-x64.iso
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/Desyncccc/claude_os">Source on GitHub</a>
+        </div>
+      </div>
+      <div class="meta">
+        <div><span>Version</span><b data-version-long>0.1.2611 “First Light”</b></div>
+        <div><span>Platform</span><b>x86-64 · BIOS and UEFI</b></div>
+        <div><span>Size</span><b data-size-long>5.1 MB</b></div>
+        <div><span>Built</span><b data-built>—</b></div>
+        <div><span>SHA-256</span><b class="hash" data-hash title="Click to copy">see radiant-x64.iso.sha256</b></div>
+        <div style="border:0"><span>Needs</span><b>128 MB RAM · PS/2 input</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <p><b style="color:var(--ink)">RadiaNT OS</b> — an independent hobby project released under the MIT licence.</p>
+      <p>RadiaNT is not affiliated with, endorsed by or derived from Microsoft. It contains no Microsoft code and does not run Windows software. “Windows” and “Windows NT” are trademarks of Microsoft Corporation, used here only to describe the architecture this kernel is modelled on.</p>
+    </div>
+    <div>
+      <p>The ISO boots with <a href="https://www.gnu.org/software/grub/">GNU GRUB 2</a> (GPLv3). Interface type is rendered from <a href="https://rsms.me/inter/">Inter</a> (SIL OFL) and DejaVu Sans Mono.</p>
+      <p><a href="https://github.com/Desyncccc/claude_os">Source</a> · <a href="https://github.com/Desyncccc/claude_os/blob/HEAD/LICENSE">Licence</a> · <a href="https://github.com/Desyncccc/claude_os/blob/HEAD/NOTICE">Notices</a></p>
+    </div>
+  </div>
+</footer>
+
+<dialog id="lightbox" aria-label="Screenshot"><img alt=""><p></p></dialog>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+  /* ---------- Sky: the OS wallpaper, animated ---------- */
+  const sky = $('#sky'), ctx = sky.getContext('2d');
+  const strands = [
+    [.61, 120, .95, .10, 44, 2.1, .30, 46, .060, '255,46,136'],  [.61, 120, .95, .10, 44, 2.1, .30, 2.4, .85, '255,95,160'],
+    [.62, 114, .95, .12, 48, 2.1, .34, 1.6, .62, '255,143,95'],   [.63, 108, .95, .14, 52, 2.1, .38, 1.5, .48, '255,194,95'],
+    [.64, 102, .95, .16, 56, 2.1, .42, 1.3, .36, '255,226,143'],  [.37, 104, .80, .59, 38, 1.7, .04, 42, .055, '122,77,255'],
+    [.37, 104, .80, .59, 38, 1.7, .04, 2.4, .80, '155,123,255'],  [.38, 98, .80, .61, 42, 1.7, .09, 1.6, .55, '111,168,255'],
+    [.39, 92, .80, .64, 46, 1.7, .14, 1.4, .42, '95,224,255'],    [.80, 58, 1.2, .88, 22, 2.6, .49, 32, .045, '30,200,255'],
+    [.80, 58, 1.2, .88, 22, 2.6, .49, 1.8, .55, '127,240,255'],   [.81, 53, 1.2, .91, 26, 2.6, .55, 1.4, .36, '183,255,232'],
+  ];
+  let W = 0, H = 0, stars = [], dpr = 1, running = true, last = 0;
+  function resize() {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = sky.width = innerWidth * dpr; H = sky.height = innerHeight * dpr;
+    stars = Array.from({ length: Math.round(innerWidth * innerHeight / 5200) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, r: (Math.random() * 1.1 + .3) * dpr, p: Math.random() * 6.28, s: .4 + Math.random() * 1.6,
+      c: ['255,255,255', '255,217,176', '184,216,255'][Math.random() * 3 | 0],
+    }));
+    draw(performance.now());
+  }
+  function draw(t) {
+    const time = t / 1000, k = H / 720;
+    ctx.clearRect(0, 0, W, H);
+    for (const s of stars) {
+      ctx.fillStyle = `rgba(${s.c},${.25 + .55 * (.5 + .5 * Math.sin(time * s.s + s.p))})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    const step = Math.max(6, W / 220);
+    for (const [base, a1, f1, p1, a2, f2, p2, w, alpha, rgb] of strands) {
+      ctx.beginPath();
+      for (let x = -step; x <= W + step; x += step) {
+        const u = x / W;
+        const y = base * H + Math.sin(6.283 * (f1 * u + p1) + time * .16) * a1 * k + Math.sin(6.283 * (f2 * u + p2) - time * .11) * a2 * k;
+        x < 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      const g = ctx.createLinearGradient(0, 0, W, 0);
+      g.addColorStop(0, `rgba(${rgb},${alpha * .35})`); g.addColorStop(.5, `rgba(${rgb},${alpha})`); g.addColorStop(1, `rgba(${rgb},${alpha * .35})`);
+      ctx.strokeStyle = g; ctx.lineWidth = w * dpr * Math.max(k / dpr, .8); ctx.lineCap = 'round';
+      ctx.shadowColor = `rgba(${rgb},.9)`; ctx.shadowBlur = w > 10 ? 0 : 14 * dpr;
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over';
+  }
+  function frame(t) {
+    if (running && t - last > 30) { last = t; draw(t); }
+    requestAnimationFrame(frame);
+  }
+  addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => running = !document.hidden);
+  resize();
+  if (!reduce) requestAnimationFrame(frame);
+
+  /* ---------- Scroll: screen tilt, backdrop dimming ---------- */
+  const screen = $('#screen'), veil = $('#veil');
+  function onScroll() {
+    const y = scrollY, vh = innerHeight;
+    if (!reduce && innerWidth > 620) {
+      const r = screen.getBoundingClientRect();
+      const p = Math.min(Math.max(1 - (r.top - vh * .25) / (vh * .7), 0), 1);
+      screen.style.transform = `rotateX(${16 * (1 - p)}deg) scale(${.94 + .06 * p})`;
+    }
+    veil.style.opacity = Math.min(y / (vh * 1.2), 1) * .42;
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- Reveal on scroll ---------- */
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12 });
+  $$('.reveal').forEach((el, i) => { el.style.transitionDelay = (i % 3) * 70 + 'ms'; io.observe(el); });
+  $$('.card').forEach(c => c.addEventListener('pointermove', e => {
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', e.clientX - r.left + 'px'); c.style.setProperty('--my', e.clientY - r.top + 'px');
+  }));
+
+  /* ---------- Architecture explorer ---------- */
+  const parts = {
+    user: ['User mode', 'PE32+ programs', 'var(--green)', 'Freestanding Portable Executables compiled with clang for the Microsoft x64 ABI and linked by lld-link. Each runs in its own address space at ring 3 and can only reach the kernel through SYSCALL.',
+      ['Loaded at their preferred base, 0x140000000', 'Per-section page protection, W^X with NX', 'A fault terminates the process with an NTSTATUS, e.g. 0xC0000005'], 'user/'],
+    ob: ['Executive', 'Ob — Object Manager', '#a98bff', 'Gives every kernel resource a type, a reference count and, optionally, a name in a single hierarchical namespace. User mode refers to objects through per-process handle tables.',
+      ['Types are objects too, in \\ObjectTypes', 'Symbolic links such as \\DosDevices → \\GLOBAL??', 'Handles are multiples of 4, as on NT'], 'kernel/ob/ob.c'],
+    ps: ['Executive', 'Ps — Process Manager', 'var(--green)', 'Owns EPROCESS and ETHREAD: creates system threads and user-mode processes, loads PE32+ images, and reaps threads after they exit.',
+      ['PID 0 is Idle, PID 4 is System', 'A reaper thread frees stacks and address spaces', 'Processes and threads are waitable dispatcher objects'], 'kernel/ps/'],
+    mm: ['Executive', 'Mm — Memory Manager', 'var(--orange)', 'Tracks physical pages in a PFN bitmap, maps all RAM at 0xFFFF8000\'00000000, builds a PML4 per process and serves the kernel a tagged, coalescing pool.',
+      ['Kernel image linked at 0xFFFFFFFF\'80000000', 'User buffers are probed before a service touches them', 'ExAllocatePoolWithTag with per-tag accounting'], 'kernel/mm/'],
+    io: ['Executive', 'Io — I/O Manager', 'var(--yellow)', 'Models hardware as driver objects that own device objects, and moves requests between them as IRPs through per-driver dispatch tables.',
+      ['\\Driver\\i8042prt → KeyboardClass0, PointerClass0', '\\Driver\\Video, \\Driver\\Serial, \\Driver\\Null', 'ISR → DPC → event → IRP_MJ_READ'], 'kernel/io/'],
+    cm: ['Executive', 'Cm — Configuration Manager', 'var(--cyan)', 'The registry: a tree of keys holding REG_SZ and REG_DWORD values, filled in at boot with hardware, version and service information.',
+      ['\\Registry\\Machine\\Hardware\\Description', '\\Registry\\Machine\\Software\\RadiaNT', 'Queried from the shell with reg'], 'kernel/cm/cm.c'],
+    win32k: ['Executive', 'win32k — Window Manager', 'var(--pink)', 'The kernel-mode window manager and graphics engine, as on NT 4 and later. One thread reads raw input, runs window procedures and composites damaged rectangles to the framebuffer.',
+      ['Anti-aliased shapes, shadows and glyphs in fixed point', 'Frosted glass from a pre-blurred wallpaper', 'Terminal, System Monitor, Object Explorer, Nebula'], 'kernel/win32k/'],
+    ke: ['Kernel', 'Ke — the kernel proper', 'var(--pink)', 'The lowest portable layer: interrupt levels, deferred procedure calls, the dispatcher that blocks and wakes threads, the scheduler, trap handling and the SYSCALL entry point.',
+      ['PASSIVE → APC → DISPATCH → device → CLOCK → HIGH', 'Events, semaphores and mutants with timed waits', 'KeBugCheckEx when something is beyond repair'], 'kernel/ke/'],
+    hal: ['HAL', 'HAL — Hardware Abstraction Layer', 'var(--cyan)', 'Everything that knows it is running on a PC: port I/O, the 8259 interrupt controller, the 8254 timer, the CMOS clock, the 16550 serial port and reset/power-off.',
+      ['Remaps IRQs to vectors 0x20–0x2F', '1 kHz clock tick drives the scheduler', 'Kernel debug log on COM1 at 115200 baud'], 'kernel/hal/hal.c'],
+  };
+  const detail = $('#detail');
+  function show(k) {
+    const [layer, name, color, text, bullets, src] = parts[k];
+    detail.style.setProperty('--c', color);
+    detail.innerHTML = `<span class="tagline">${layer}</span><h3 style="color:${color}">${name}</h3><p>${text}</p><ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul><a class="src" href="https://github.com/Desyncccc/claude_os/tree/HEAD/${src}">${src} →</a>`;
+    $$('.node').forEach(n => n.setAttribute('aria-pressed', n.dataset.k === k));
+  }
+  $$('.node').forEach(n => { n.addEventListener('click', () => show(n.dataset.k)); n.addEventListener('pointerenter', () => show(n.dataset.k)); });
+  show('ke');
+
+  /* ---------- Gallery lightbox ---------- */
+  const lb = $('#lightbox');
+  $$('.shot').forEach(s => s.addEventListener('click', () => {
+    const img = $('img', s);
+    $('img', lb).src = img.src; $('img', lb).alt = img.alt; $('p', lb).textContent = s.dataset.cap;
+    lb.showModal();
+  }));
+  lb.addEventListener('click', () => lb.close());
+
+  /* ---------- Tabs + copy buttons ---------- */
+  $$('.tabs button').forEach(b => b.addEventListener('click', () => {
+    $$('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+    $$('.panel').forEach(p => p.classList.toggle('on', p.id === 'tab-' + b.dataset.tab));
+  }));
+  $$('.cmd button').forEach(b => b.addEventListener('click', async () => {
+    const text = $('pre', b.parentElement).innerText;
+    try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; } catch { b.textContent = 'Select + copy'; }
+    setTimeout(() => b.textContent = 'Copy', 1600);
+  }));
+
+  /* ---------- Release metadata ---------- */
+  fetch('download/release.json').then(r => r.ok ? r.json() : Promise.reject()).then(rel => {
+    const mb = (rel.bytes / 1048576).toFixed(1) + ' MB';
+    $$('[data-size]').forEach(e => e.textContent = '· ' + mb);
+    $('[data-size-long]').textContent = `${mb} (${rel.bytes.toLocaleString('en-US')} bytes)`;
+    $('[data-version]').textContent = 'v' + rel.version;
+    $('[data-version-long]').textContent = `${rel.version} “${rel.codename}”`;
+    $('[data-built]').textContent = rel.built;
+    const h = $('[data-hash]'); h.textContent = rel.sha256;
+    h.addEventListener('click', () => navigator.clipboard?.writeText(rel.sha256).then(() => { h.title = 'Copied'; }));
+  }).catch(() => {});
+
+  /* ---------- Terminal simulation ---------- */
+  const out = $('#out'), input = $('#in'), bsod = $('#bsod');
+  const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const T = (cls, s) => `<span class="c-${cls}">${esc(s)}</span>`;
+  const print = html => { out.insertAdjacentHTML('beforeend', html + '\n'); out.scrollTop = out.scrollHeight; };
+  const boot = Date.now();
+  const up = () => { const s = (Date.now() - boot) / 1000 | 0; return `${s / 3600 | 0}h ${s / 60 % 60 | 0}m ${s % 60}s`; };
+  let pid = 20, spinning = false;
+  const table = (head, rows) => [T('orange', head), ...rows].join('\n');
+  const cmds = {
+    help: () => [T('orange', 'Built-in commands'),
+      ...[['sysinfo', 'System summary'], ['ps', 'Processes and threads (scheduler view)'], ['mem', 'Physical memory and pool usage'],
+        ['obj [path]', 'List an object manager directory (default \\)'], ['drivers', 'Loaded drivers and their devices'],
+        ['syscalls', 'System service table'], ['reg', 'Browse the registry'], ['ls', 'Boot images in \\SystemRoot'],
+        ['bugcheck', 'Crash the kernel on purpose'], ['clear', 'Clear the console']].map(([a, b]) => T('cyan', '  ' + a.padEnd(18)) + esc(b)),
+      T('dim', 'Programs: hello, primes, clock, crash, spin')].join('\n'),
+    sysinfo: () => {
+      const art = ['       /\\       ', '      /  \\      ', '     / /\\ \\     ', '    / /  \\ \\    ', '    \\ \\  / /    ', '     \\ \\/ /     ', '      \\  /      ', '       \\/       '];
+      const info = [['', 'RadiaNT OS 0.1.2611 "First Light"'], ['Kernel    ', 'NT-architecture hybrid kernel, x64, uniprocessor'], ['CPU       ', navigator.userAgent.includes('Mac') ? 'Your browser, pretending (Mac)' : 'Your browser, pretending'],
+        ['Memory    ', '14 MB used of 510 MB'], ['Display   ', `${innerWidth}x${innerHeight}, 32 bpp`], ['Firmware  ', 'BIOS via GRUB 2.12'], ['Uptime    ', up()], ['Objects   ', '2 processes, 3 threads, 26 registry keys']];
+      return art.map((a, i) => T(i < 4 ? 'pink' : 'orange', a) + (i ? T('cyan', info[i][0]) + esc(info[i][1]) : T('white', info[i][1]))).join('\n');
+    },
+    ver: () => cmds.sysinfo(),
+    ps: () => table('  PID   TID  PRI  STATE     MODE    KTIME   UTIME      CSW  HND  IMAGE!THREAD', [
+      '    0     0    0  Ready     kernel      0       0     3200    0  Idle!Idle',
+      '    4    12   12  Waiting   kernel      1       0        3    0  System!Reaper',
+      T('green', '    4    16   13  Running   kernel   1518       0     5464    0  System!win32k!Desktop'),
+      T('dim', '3 threads. Times are clock ticks (1 ms).')]),
+    mem: () => [T('orange', 'Physical memory'), '  Total          130560 pages     510 MB', '  In use           3765 pages      14 MB', '  Free           126795 pages     496 MB',
+      T('orange', 'Virtual layout'), '  User space     0x0000000000010000 - 0x00007FFFFFFFFFFF', '  Physical map   0xFFFF800000000000  (4 GB mapped, 2 MB pages)', '  Kernel image   0xFFFFFFFF80000000'].join('\n'),
+    obj: a => {
+      const dirs = {
+        '\\': [['ObjectTypes', 'Directory'], ['Device', 'Directory'], ['Driver', 'Directory'], ['KernelObjects', 'Directory'], ['GLOBAL??', 'Directory'], ['SystemRoot', 'Directory'], ['DosDevices', 'SymbolicLink', '\\GLOBAL??']],
+        '\\device': [['Null', 'Device'], ['Serial0', 'Device'], ['Video0', 'Device'], ['KeyboardClass0', 'Device'], ['PointerClass0', 'Device']],
+        '\\driver': [['Null', 'Driver'], ['Serial', 'Driver'], ['Video', 'Driver'], ['i8042prt', 'Driver']],
+        '\\objecttypes': ['Type', 'Directory', 'SymbolicLink', 'Event', 'Mutant', 'Semaphore', 'Process', 'Thread', 'Driver', 'Device', 'File'].map(n => [n, 'Type']),
+        '\\global??': [['NUL', 'SymbolicLink', '\\Device\\Null'], ['COM1', 'SymbolicLink', '\\Device\\Serial0'], ['DISPLAY1', 'SymbolicLink', '\\Device\\Video0']],
+        '\\systemroot': ['hello.exe', 'primes.exe', 'clock.exe', 'crash.exe', 'spin.exe'].map(n => [n, 'File']),
+        '\\kernelobjects': [],
+      };
+      const path = a || '\\', list = dirs[path.toLowerCase().replace(/\\$/, '') || '\\'];
+      if (!list || !list.length) return T('orange', 'Directory of ' + path) + '\n' + T('dim', '  (empty, or not a directory)');
+      return T('orange', 'Directory of ' + path) + '\n' + list.map(([n, t, l]) => T(t === 'Directory' ? 'pink' : 'cyan', '  ' + n.padEnd(28)) + T('dim', t.padEnd(14)) + (l ? esc('-> ' + l) : T('dim', 'refs 1  handles 0'))).join('\n');
+    },
+    dir: a => cmds.obj(a),
+    drivers: () => [['Null', 'Null device (bit bucket)', ['Null']], ['Serial', '16550 UART serial port', ['Serial0']], ['Video', 'Linear framebuffer miniport', ['Video0']], ['i8042prt', 'PS/2 keyboard and mouse port', ['PointerClass0', 'KeyboardClass0']]]
+      .map(([n, d, devs]) => T('pink', ('  \\Driver\\' + n).padEnd(24)) + esc(d) + '\n' + devs.map(v => T('cyan', '      \\Device\\' + v)).join('\n')).join('\n'),
+    syscalls: () => table('  NUM  SERVICE', ['NtDisplayString', 'NtTerminateProcess', 'NtDelayExecution', 'NtQuerySystemInformation', 'NtGetTickCount', 'NtYieldExecution', 'NtAllocateVirtualMemory',
+      'NtCreateEvent', 'NtSetEvent', 'NtWaitForSingleObject', 'NtClose', 'NtQuerySystemTime', 'NtGetCurrentProcessId', 'NtSetConsoleColor']
+      .map((n, i) => T('dim', String(i).padStart(5) + '  ') + T('cyan', n)).concat(T('dim', '  Entry: SYSCALL, RAX = number, R10/RDX/R8/R9 = arguments.'))),
+    reg: () => [T('orange', '\\Registry\\Machine\\Software\\RadiaNT\\CurrentVersion'), ...[['ProductName', 'RadiaNT OS'], ['CurrentVersion', '0.1.2611'], ['ReleaseName', 'First Light'], ['KernelType', 'Uniprocessor Free (x64)'], ['SystemRoot', '\\SystemRoot']]
+      .map(([k, v]) => T('cyan', '  ' + k.padEnd(22)) + T('dim', 'REG_SZ     ') + esc(v))].join('\n'),
+    ls: () => T('orange', 'Directory of \\SystemRoot') + '\n' + [['hello.exe', 4608], ['primes.exe', 3584], ['clock.exe', 3584], ['crash.exe', 3584], ['spin.exe', 3584]]
+      .map(([n, s]) => T('green', '  ' + n.padEnd(16)) + `${String(s).padStart(8)} bytes   PE32+ image`).join('\n'),
+    hello: () => { pid += 8; return [T('pink', 'Hello from user mode!'), `I am a PE32+ image running in ring 3 (CS=0x23), process id ${pid}.`, 'main() is at 0x0000000140001000, my stack is near 0x00007FFFFFFDFF24.',
+      T('orange', 'NtQuerySystemInformation says:'), '  RadiaNT 0.1 build 2611 on QEMU Virtual CPU version 2.5+', `  510 MB RAM (496 MB free), 3 processes, 4 threads, up ${Date.now() - boot} ms`,
+      'Event handle 0x4: 250 ms wait returned 0x102 (STATUS_TIMEOUT)', 'After NtSetEvent the wait returned 0x0 (STATUS_SUCCESS)', 'Allocated and touched 1 MB of private memory at 0x0000000010000000.', T('green', 'Goodbye.')].join('\n'); },
+    primes: () => { pid += 8; return [T('orange', 'Sieve of Eratosthenes up to 2000000...'), '148933 primes found, the largest is 1999993.', 'First few: 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53', 'Took 48 ms of wall time in user mode.'].join('\n'); },
+    clock: () => { pid += 8; return T('orange', 'Ticking once a second, ten times.') + '\n' + T('cyan', '  ' + new Date().toUTCString().slice(0, 25)) + '   ' + T('dim', '(the real one keeps going)'); },
+    crash: () => { pid += 8; return [T('orange', 'About to scribble on kernel memory at 0xFFFFFFFF80000000 from user mode...'), '',
+      T('red', `*** crash.exe (pid ${pid}): unhandled exception 0xC0000005 (Page Fault)`), T('red', '    writing address 0xFFFFFFFF80000000 from RIP 0x0000000140001036'), T('red', '[crash.exe exited with status 0xC0000005]'), T('dim', 'The kernel is fine. That is the point.')].join('\n'); },
+    spin: () => { pid += 8; spinning = true; return T('orange', `Spinning forever in user mode (pid ${pid}).`) + '\n' + T('dim', 'Press any key (or Ctrl+C) to stop it.'); },
+    clear: () => { out.textContent = ''; return null; },
+    cls: () => cmds.clear(),
+    bugcheck: () => {
+      bsod.innerHTML = `<h4>RadiaNT hit a fatal error and was halted</h4><div>A kernel bugcheck stopped the system to protect its state.</div>
+        <div class="stop">*** STOP: 0x000000E2</div><h4>MANUALLY_INITIATED_CRASH</h4>
+        <div style="margin-top:14px">Parameter 1   0x0052414449414E54<br>Parameter 2   0x${(Date.now() - boot).toString(16).toUpperCase().padStart(16, '0')}<br>Parameter 3   0x0000000000000000<br>Parameter 4   0x0000000000000000</div>
+        <div style="margin-top:18px;color:#b98a9c">Rebooting the simulation…</div>`;
+      bsod.classList.add('on');
+      setTimeout(() => { bsod.classList.remove('on'); out.textContent = ''; banner(); }, 3200);
+      return null;
+    },
+    reboot: () => cmds.bugcheck(), shutdown: () => T('dim', 'The simulation cannot power off your browser. The real one can power off the VM.'),
+  };
+  function banner() {
+    print(T('pink', 'RadiaNT OS ') + T('white', '[Version 0.1.2611]') + T('dim', '  x64, NT-architecture kernel'));
+    print(T('dim', "Type 'help' for commands, 'sysinfo' for a summary, or 'hello' to run a user-mode program.") + '\n');
+  }
+  function run(line) {
+    const promptHtml = T('pink', 'RadiaNT') + ' ' + T('violet', '\\System') + ' ' + T('dim', '>') + ' ';
+    if (spinning) { spinning = false; print(T('dim', '^C') + '\n' + T('dim', '[spin.exe exited with status 0xC000013A]')); if (!line.trim()) return; }
+    print(promptHtml + esc(line));
+    const [name, ...rest] = line.trim().split(/\s+/);
+    if (!name) return;
+    const fn = cmds[name.toLowerCase()];
+    const res = fn ? fn(rest.join(' ')) : T('red', `'${name}' is not a command or a program in \\SystemRoot. Try 'help'.`);
+    if (res != null) print(res);
+  }
+  $('#prompt').addEventListener('submit', e => { e.preventDefault(); run(input.value); input.value = ''; });
+  input.addEventListener('keydown', e => { if (spinning && e.key !== 'Enter') { e.preventDefault(); run(''); } });
+  $('#term').addEventListener('click', e => { if (!e.target.closest('button') && !getSelection().toString()) input.focus({ preventScroll: true }); });
+  ['sysinfo', 'hello', 'ps', 'obj \\Device', 'drivers', 'crash', 'spin', 'bugcheck'].forEach(c => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = c;
+    b.addEventListener('click', () => run(c)); $('#quick').append(b);
+  });
+  banner();
+  /* type one command by itself the first time the terminal scrolls into view */
+  new IntersectionObserver((es, o) => {
+    if (!es[0].isIntersecting) return;
+    o.disconnect();
+    const demo = 'sysinfo'; let i = 0;
+    if (reduce) { run(demo); return; }
+    const tick = () => { if (input.value !== demo.slice(0, i)) return; if (i < demo.length) { input.value = demo.slice(0, ++i); setTimeout(tick, 90); } else setTimeout(() => { if (input.value === demo) { run(demo); input.value = ''; } }, 350); };
+    setTimeout(tick, 500);
+  }, { threshold: .5 }).observe($('#term'));
+})();
+</script>
+</body>
+</html>
