@@ -137,9 +137,11 @@ The kernel debug log goes to COM1; `make run` shows it in your terminal.
 ## Website
 
 The site in [`docs/`](docs/) is static and is published with GitHub Pages:
-**Settings → Pages → Build and deployment → Deploy from a branch**, pick the
-branch and the `/docs` folder. It serves the ISO from `docs/download/`; run
-`make site` after changing the kernel to refresh it.
+**Settings → Pages → Build and deployment → Deploy from a branch**. Either
+folder works: with `/docs` the site is served at the top of the Pages URL; with
+`/ (root)` the top-level `index.html` forwards visitors to `docs/`. The ISO is
+served from `docs/download/`; run `make site` after changing the kernel to
+refresh it.
 
 ## Limits
 
